@@ -127,6 +127,19 @@ class Session:
             'autoAttach': True, 'waitForDebuggerOnStart': False, 'flatten': True,
         }, session_id=session_id)
 
+        try:
+            await self.browser.send('Emulation.setUserAgentOverride', {
+                'userAgent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0'
+                ),
+                'acceptLanguage': 'en-US,en;q=0.9',
+                'platform': 'Win32',
+            }, session_id=session_id)
+        except Exception:
+            pass
+
         with open('./src/agent/session/script.js') as f:
             anti_detect = f.read()
         try:

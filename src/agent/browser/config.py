@@ -68,6 +68,7 @@ BROWSER_ARGS = [
     '--no-default-browser-check',
     '--no-startup-window',
     '--window-position=0,0',
+    '--force-device-scale-factor=1',
 ]
 
 IGNORE_DEFAULT_ARGS = ['--enable-automation']
