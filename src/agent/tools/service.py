@@ -131,26 +131,25 @@ async def scrape_tool(session: Session = None):
 async def tab_tool(mode: Literal['open', 'close', 'switch'], tab_index: Optional[int] = None,
                    session: Session = None):
     '''Manages browser tabs: opens new blank tabs, closes the current tab, or switches between existing tabs by index.'''
-    if mode == 'open':
-        await session.new_tab()
-        await session._wait_for_page(timeout=5.0)
-        return 'Opened a new blank tab and switched to it.'
-
-    elif mode == 'close':
-        if len(session._sessions) <= 1:
-            return 'Cannot close the last remaining tab.'
-        await session.close_tab()
-        return 'Closed current tab and switched to the last remaining tab.'
-
-    elif mode == 'switch':
-        tabs = await session.get_all_tabs()
-        if tab_index is None or tab_index < 0 or tab_index >= len(tabs):
-            raise IndexError(f'Tab index {tab_index} out of range. Available: {len(tabs)}')
-        await session.switch_tab(tab_index)
-        await session._wait_for_page(timeout=5.0)
-        return f'Switched to tab {tab_index} (Total tabs: {len(tabs)}).'
-
-    raise ValueError("Invalid mode. Use 'open', 'close', or 'switch'.")
+    match mode:
+        case 'open':
+            await session.new_tab()
+            await session._wait_for_page(timeout=5.0)
+            return 'Opened a new blank tab and switched to it.'
+        case 'close':
+            if len(session._sessions) <= 1:
+                return 'Cannot close the last remaining tab.'
+            await session.close_tab()
+            return 'Closed current tab and switched to the last remaining tab.'
+        case 'switch':
+            tabs = await session.get_all_tabs()
+            if tab_index is None or tab_index < 0 or tab_index >= len(tabs):
+                raise IndexError(f'Tab index {tab_index} out of range. Available: {len(tabs)}')
+            await session.switch_tab(tab_index)
+            await session._wait_for_page(timeout=5.0)
+            return f'Switched to tab {tab_index} (Total tabs: {len(tabs)}).'
+        case _:
+            raise ValueError("Invalid mode. Use 'open', 'close', or 'switch'.")
 
 
 @Tool('Upload Tool', model=Upload)

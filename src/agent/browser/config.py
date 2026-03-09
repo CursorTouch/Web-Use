@@ -1,6 +1,34 @@
+import platformdirs
+import os
+import platform
 from dataclasses import dataclass
 from typing import Literal
 from pathlib import Path
+
+def _get_browser_user_data_dir(browser: str) -> str:
+    """Retrieve the standard user data directory for the specified browser."""
+    system = platform.system()
+    home = Path.home()
+    
+    if system == "Windows":
+        local = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+        if browser == 'chrome':
+            return (local / "Google" / "Chrome" / "User Data").as_posix()
+        elif browser == 'edge':
+            return (local / "Microsoft" / "Edge" / "User Data").as_posix()
+    elif system == "Darwin":
+        support = home / "Library" / "Application Support"
+        if browser == 'chrome':
+            return (support / "Google" / "Chrome").as_posix()
+        elif browser == 'edge':
+            return (support / "Microsoft" / "Edge").as_posix()
+    else:  # Linux/Unix
+        config_home = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+        if browser == 'chrome':
+            return (config_home / "google-chrome").as_posix()
+        elif browser == 'edge':
+            return (config_home / "microsoft-edge").as_posix()
+    return None
 
 @dataclass
 class BrowserConfig:
@@ -9,11 +37,15 @@ class BrowserConfig:
     cdp_port: int = 9222         # Local remote-debugging port
     device: str = None
     browser_instance_dir: str = None  # Path to browser executable (optional override)
-    downloads_dir: str = (Path.home() / 'Downloads').as_posix()
+    downloads_dir: str = platformdirs.user_downloads_dir()
     browser: Literal['chrome', 'edge'] = 'edge'
     user_data_dir: str = None
     timeout: int = 60 * 1000
     slow_mo: int = 300
+
+    def __post_init__(self):
+        if self.user_data_dir is None:
+            self.user_data_dir = _get_browser_user_data_dir(self.browser)
 
 SECURITY_ARGS = [
     '--disable-web-security',

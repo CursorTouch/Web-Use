@@ -1,7 +1,7 @@
 from src.agent.browser.config import BrowserConfig, BROWSER_ARGS, SECURITY_ARGS
+from typing import Any, Optional, Callable
 from pathlib import Path
 from src.cdp import Client
-from typing import Any
 import subprocess
 import tempfile
 import asyncio
@@ -147,8 +147,8 @@ class Browser:
     # CDP wrappers
     # ------------------------------------------------------------------
 
-    async def send(self, method: str, params: dict = None, session_id: str = None) -> Any:
+    async def send(self, method: str, params: Optional[dict] = None, session_id: Optional[str] = None) -> Any:
         return await self._client.send(method, params or {}, session_id=session_id)
 
-    def on(self, event: str, handler) -> None:
+    def on(self, event: str, handler:Callable[[Any,Optional[str]], None]) -> None:
         self._client.on(event, handler)
