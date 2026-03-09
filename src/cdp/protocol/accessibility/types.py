@@ -1,0 +1,89 @@
+"""CDP Accessibility Types"""
+from __future__ import annotations
+from typing import TypedDict, NotRequired, Required, Literal, Any, Dict, Union, Optional, List, Set, Tuple
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from cdp.protocol.dom.types import BackendNodeId
+    from cdp.protocol.page.types import FrameId
+
+AXNodeId = str
+"""Unique accessibility node identifier."""
+AXValueType = Literal['boolean','tristate','booleanOrUndefined','idref','idrefList','integer','node','nodeList','number','string','computedString','token','tokenList','domRelation','role','internalRole','valueUndefined']
+"""Enum of possible property types."""
+AXValueSourceType = Literal['attribute','implicit','style','contents','placeholder','relatedElement']
+"""Enum of possible property sources."""
+AXValueNativeSourceType = Literal['description','figcaption','label','labelfor','labelwrapped','legend','rubyannotation','tablecaption','title','other']
+"""Enum of possible native property sources (as a subtype of a particular AXValueSourceType)."""
+class AXValueSource(TypedDict, total=True):
+    """A single source for a computed AX property."""
+    type: AXValueSourceType
+    """What type of source this is."""
+    value: NotRequired[AXValue]
+    """The value of this property source."""
+    attribute: NotRequired[str]
+    """The name of the relevant attribute, if any."""
+    attributeValue: NotRequired[AXValue]
+    """The value of the relevant attribute, if any."""
+    superseded: NotRequired[bool]
+    """Whether this source is superseded by a higher priority source."""
+    nativeSource: NotRequired[AXValueNativeSourceType]
+    """The native markup source for this value, e.g. a <label> element."""
+    nativeSourceValue: NotRequired[AXValue]
+    """The value, such as a node or node list, of the native source."""
+    invalid: NotRequired[bool]
+    """Whether the value for this property is invalid."""
+    invalidReason: NotRequired[str]
+    """Reason for the value being invalid, if it is."""
+class AXRelatedNode(TypedDict, total=True):
+    backendDOMNodeId: BackendNodeId
+    """The BackendNodeId of the related DOM node."""
+    idref: NotRequired[str]
+    """The IDRef value provided, if any."""
+    text: NotRequired[str]
+    """The text alternative of this node in the current context."""
+class AXProperty(TypedDict, total=True):
+    name: AXPropertyName
+    """The name of this property."""
+    value: AXValue
+    """The value of this property."""
+class AXValue(TypedDict, total=True):
+    """A single computed AX property."""
+    type: AXValueType
+    """The type of this value."""
+    value: NotRequired[Any]
+    """The computed value of this property."""
+    relatedNodes: NotRequired[List[AXRelatedNode]]
+    """One or more related nodes, if applicable."""
+    sources: NotRequired[List[AXValueSource]]
+    """The sources which contributed to the computation of this property."""
+AXPropertyName = Literal['actions','busy','disabled','editable','focusable','focused','hidden','hiddenRoot','invalid','keyshortcuts','settable','roledescription','live','atomic','relevant','root','autocomplete','hasPopup','level','multiselectable','orientation','multiline','readonly','required','valuemin','valuemax','valuetext','checked','expanded','modal','pressed','selected','activedescendant','controls','describedby','details','errormessage','flowto','labelledby','owns','url','activeFullscreenElement','activeModalDialog','activeAriaModalDialog','ariaHiddenElement','ariaHiddenSubtree','emptyAlt','emptyText','inertElement','inertSubtree','labelContainer','labelFor','notRendered','notVisible','presentationalRole','probablyPresentational','inactiveCarouselTabContent','uninteresting']
+"""Values of AXProperty name: - from 'busy' to 'roledescription': states which apply to every AX node - from 'live' to 'root': attributes which apply to nodes in live regions - from 'autocomplete' to 'valuetext': attributes which apply to widgets - from 'checked' to 'selected': states which apply to widgets - from 'activedescendant' to 'owns': relationships between elements other than parent/child/sibling - from 'activeFullscreenElement' to 'uninteresting': reasons why this noode is hidden"""
+class AXNode(TypedDict, total=True):
+    """A node in the accessibility tree."""
+    nodeId: AXNodeId
+    """Unique identifier for this node."""
+    ignored: bool
+    """Whether this node is ignored for accessibility"""
+    ignoredReasons: NotRequired[List[AXProperty]]
+    """Collection of reasons why this node is hidden."""
+    role: NotRequired[AXValue]
+    """This Node's role, whether explicit or implicit."""
+    chromeRole: NotRequired[AXValue]
+    """This Node's Chrome raw role."""
+    name: NotRequired[AXValue]
+    """The accessible name for this Node."""
+    description: NotRequired[AXValue]
+    """The accessible description for this Node."""
+    value: NotRequired[AXValue]
+    """The value for this Node."""
+    properties: NotRequired[List[AXProperty]]
+    """All other properties"""
+    parentId: NotRequired[AXNodeId]
+    """ID for this node's parent."""
+    childIds: NotRequired[List[AXNodeId]]
+    """IDs for each of this node's child nodes."""
+    backendDOMNodeId: NotRequired[BackendNodeId]
+    """The backend ID for the associated DOM node, if any."""
+    frameId: NotRequired[FrameId]
+    """The frame ID for the frame associated with this nodes document."""

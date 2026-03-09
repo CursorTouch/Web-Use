@@ -1,0 +1,152 @@
+"""CDP DOM Types"""
+from __future__ import annotations
+from typing import TypedDict, NotRequired, Required, Literal, Any, Dict, Union, Optional, List, Set, Tuple
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from cdp.protocol.page.types import FrameId
+
+NodeId = int
+"""Unique DOM node identifier."""
+BackendNodeId = int
+"""Unique DOM node identifier used to reference a node that may not have been pushed to the front-end."""
+StyleSheetId = str
+"""Unique identifier for a CSS stylesheet."""
+class BackendNode(TypedDict, total=True):
+    """Backend node with a friendly name."""
+    nodeType: int
+    """Node's nodeType."""
+    nodeName: str
+    """Node's nodeName."""
+    backendNodeId: BackendNodeId
+PseudoType = Literal['first-line','first-letter','checkmark','before','after','picker-icon','interest-hint','marker','backdrop','column','selection','search-text','target-text','spelling-error','grammar-error','highlight','first-line-inherited','scroll-marker','scroll-marker-group','scroll-button','scrollbar','scrollbar-thumb','scrollbar-button','scrollbar-track','scrollbar-track-piece','scrollbar-corner','resizer','input-list-button','view-transition','view-transition-group','view-transition-image-pair','view-transition-group-children','view-transition-old','view-transition-new','placeholder','file-selector-button','details-content','picker','permission-icon','overscroll-area-parent']
+"""Pseudo element type."""
+ShadowRootType = Literal['user-agent','open','closed']
+"""Shadow root type."""
+CompatibilityMode = Literal['QuirksMode','LimitedQuirksMode','NoQuirksMode']
+"""Document compatibility mode."""
+PhysicalAxes = Literal['Horizontal','Vertical','Both']
+"""ContainerSelector physical axes"""
+LogicalAxes = Literal['Inline','Block','Both']
+"""ContainerSelector logical axes"""
+ScrollOrientation = Literal['horizontal','vertical']
+"""Physical scroll orientation"""
+class Node(TypedDict, total=True):
+    """DOM interaction is implemented in terms of mirror objects that represent the actual DOM nodes. DOMNode is a base node mirror type."""
+    nodeId: NodeId
+    """Node identifier that is passed into the rest of the DOM messages as the nodeId. Backend will only push node with given id once. It is aware of all requested nodes and will only fire DOM events for nodes known to the client."""
+    backendNodeId: BackendNodeId
+    """The BackendNodeId for this node."""
+    nodeType: int
+    """Node's nodeType."""
+    nodeName: str
+    """Node's nodeName."""
+    localName: str
+    """Node's localName."""
+    nodeValue: str
+    """Node's nodeValue."""
+    parentId: NotRequired[NodeId]
+    """The id of the parent node if any."""
+    childNodeCount: NotRequired[int]
+    """Child count for Container nodes."""
+    children: NotRequired[List[Node]]
+    """Child nodes of this node when requested with children."""
+    attributes: NotRequired[List[str]]
+    """Attributes of the Element node in the form of flat array [name1, value1, name2, value2]."""
+    documentURL: NotRequired[str]
+    """Document URL that Document or FrameOwner node points to."""
+    baseURL: NotRequired[str]
+    """Base URL that Document or FrameOwner node uses for URL completion."""
+    publicId: NotRequired[str]
+    """DocumentType's publicId."""
+    systemId: NotRequired[str]
+    """DocumentType's systemId."""
+    internalSubset: NotRequired[str]
+    """DocumentType's internalSubset."""
+    xmlVersion: NotRequired[str]
+    """Document's XML version in case of XML documents."""
+    name: NotRequired[str]
+    """Attr's name."""
+    value: NotRequired[str]
+    """Attr's value."""
+    pseudoType: NotRequired[PseudoType]
+    """Pseudo element type for this node."""
+    pseudoIdentifier: NotRequired[str]
+    """Pseudo element identifier for this node. Only present if there is a valid pseudoType."""
+    shadowRootType: NotRequired[ShadowRootType]
+    """Shadow root type."""
+    frameId: NotRequired[FrameId]
+    """Frame ID for frame owner elements."""
+    contentDocument: NotRequired[Node]
+    """Content document for frame owner elements."""
+    shadowRoots: NotRequired[List[Node]]
+    """Shadow root list for given element host."""
+    templateContent: NotRequired[Node]
+    """Content document fragment for template elements."""
+    pseudoElements: NotRequired[List[Node]]
+    """Pseudo elements associated with this node."""
+    distributedNodes: NotRequired[List[BackendNode]]
+    """Distributed nodes for given insertion point."""
+    isSVG: NotRequired[bool]
+    """Whether the node is SVG."""
+    compatibilityMode: NotRequired[CompatibilityMode]
+    assignedSlot: NotRequired[BackendNode]
+    isScrollable: NotRequired[bool]
+    affectedByStartingStyles: NotRequired[bool]
+    adoptedStyleSheets: NotRequired[List[StyleSheetId]]
+    isAdRelated: NotRequired[bool]
+class DetachedElementInfo(TypedDict, total=True):
+    """A structure to hold the top-level node of a detached tree and an array of its retained descendants."""
+    treeNode: Node
+    retainedNodeIds: List[NodeId]
+class RGBA(TypedDict, total=True):
+    """A structure holding an RGBA color."""
+    r: int
+    """The red component, in the [0-255] range."""
+    g: int
+    """The green component, in the [0-255] range."""
+    b: int
+    """The blue component, in the [0-255] range."""
+    a: NotRequired[float]
+    """The alpha component, in the [0-1] range (default: 1)."""
+Quad = List[float]
+"""An array of quad vertices, x immediately followed by y for each point, points clock-wise."""
+class BoxModel(TypedDict, total=True):
+    """Box model."""
+    content: Quad
+    """Content box"""
+    padding: Quad
+    """Padding box"""
+    border: Quad
+    """Border box"""
+    margin: Quad
+    """Margin box"""
+    width: int
+    """Node width"""
+    height: int
+    """Node height"""
+    shapeOutside: NotRequired[ShapeOutsideInfo]
+    """Shape outside coordinates"""
+class ShapeOutsideInfo(TypedDict, total=True):
+    """CSS Shape Outside details."""
+    bounds: Quad
+    """Shape bounds"""
+    shape: List[Any]
+    """Shape coordinate details"""
+    marginShape: List[Any]
+    """Margin shape bounds"""
+class Rect(TypedDict, total=True):
+    """Rectangle."""
+    x: float
+    """X coordinate"""
+    y: float
+    """Y coordinate"""
+    width: float
+    """Rectangle width"""
+    height: float
+    """Rectangle height"""
+class CSSComputedStyleProperty(TypedDict, total=True):
+    name: str
+    """Computed style property name."""
+    value: str
+    """Computed style property value."""

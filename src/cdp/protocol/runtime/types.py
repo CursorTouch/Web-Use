@@ -1,0 +1,194 @@
+"""CDP Runtime Types"""
+from __future__ import annotations
+from typing import TypedDict, NotRequired, Required, Literal, Any, Dict, Union, Optional, List, Set, Tuple
+
+ScriptId = str
+"""Unique script identifier."""
+class SerializationOptions(TypedDict, total=True):
+    """Represents options for serialization. Overrides generatePreview and returnByValue."""
+    serialization: Literal["deep", "json", "idOnly"]
+    maxDepth: NotRequired[int]
+    """Deep serialization depth. Default is full depth. Respected only in deep serialization mode."""
+    additionalParameters: NotRequired[Dict[str, Any]]
+    """Embedder-specific parameters. For example if connected to V8 in Chrome these control DOM serialization via maxNodeDepth: integer and includeShadowTree: "none" | "open" | "all". Values can be only of type string or integer."""
+class DeepSerializedValue(TypedDict, total=True):
+    """Represents deep serialized value."""
+    type: Literal["undefined", "null", "string", "number", "boolean", "bigint", "regexp", "date", "symbol", "array", "object", "function", "map", "set", "weakmap", "weakset", "error", "proxy", "promise", "typedarray", "arraybuffer", "node", "window", "generator"]
+    value: NotRequired[Any]
+    objectId: NotRequired[str]
+    weakLocalObjectReference: NotRequired[int]
+    """Set if value reference met more then once during serialization. In such case, value is provided only to one of the serialized values. Unique per value in the scope of one CDP call."""
+RemoteObjectId = str
+"""Unique object identifier."""
+UnserializableValue = str
+"""Primitive value which cannot be JSON-stringified. Includes values -0, NaN, Infinity, -Infinity, and bigint literals."""
+class RemoteObject(TypedDict, total=True):
+    """Mirror object referencing original JavaScript object."""
+    type: Literal["object", "function", "undefined", "string", "number", "boolean", "symbol", "bigint"]
+    """Object type."""
+    subtype: NotRequired[Literal["array", "null", "node", "regexp", "date", "map", "set", "weakmap", "weakset", "iterator", "generator", "error", "proxy", "promise", "typedarray", "arraybuffer", "dataview", "webassemblymemory", "wasmvalue", "trustedtype"]]
+    """Object subtype hint. Specified for object type values only. NOTE: If you change anything here, make sure to also update subtype in ObjectPreview and PropertyPreview below."""
+    className: NotRequired[str]
+    """Object class (constructor) name. Specified for object type values only."""
+    value: NotRequired[Any]
+    """Remote object value in case of primitive values or JSON values (if it was requested)."""
+    unserializableValue: NotRequired[UnserializableValue]
+    """Primitive value which can not be JSON-stringified does not have value, but gets this property."""
+    description: NotRequired[str]
+    """String representation of the object."""
+    deepSerializedValue: NotRequired[DeepSerializedValue]
+    """Deep serialized value."""
+    objectId: NotRequired[RemoteObjectId]
+    """Unique object identifier (for non-primitive values)."""
+    preview: NotRequired[ObjectPreview]
+    """Preview containing abbreviated property values. Specified for object type values only."""
+    customPreview: NotRequired[CustomPreview]
+class CustomPreview(TypedDict, total=True):
+    header: str
+    """The JSON-stringified result of formatter.header(object, config) call. It contains json ML array that represents RemoteObject."""
+    bodyGetterId: NotRequired[RemoteObjectId]
+    """If formatter returns true as a result of formatter.hasBody call then bodyGetterId will contain RemoteObjectId for the function that returns result of formatter.body(object, config) call. The result value is json ML array."""
+class ObjectPreview(TypedDict, total=True):
+    """Object containing abbreviated remote object value."""
+    type: Literal["object", "function", "undefined", "string", "number", "boolean", "symbol", "bigint"]
+    """Object type."""
+    overflow: bool
+    """True iff some of the properties or entries of the original object did not fit."""
+    properties: List[PropertyPreview]
+    """List of the properties."""
+    subtype: NotRequired[Literal["array", "null", "node", "regexp", "date", "map", "set", "weakmap", "weakset", "iterator", "generator", "error", "proxy", "promise", "typedarray", "arraybuffer", "dataview", "webassemblymemory", "wasmvalue", "trustedtype"]]
+    """Object subtype hint. Specified for object type values only."""
+    description: NotRequired[str]
+    """String representation of the object."""
+    entries: NotRequired[List[EntryPreview]]
+    """List of the entries. Specified for map and set subtype values only."""
+class PropertyPreview(TypedDict, total=True):
+    name: str
+    """Property name."""
+    type: Literal["object", "function", "undefined", "string", "number", "boolean", "symbol", "accessor", "bigint"]
+    """Object type. Accessor means that the property itself is an accessor property."""
+    value: NotRequired[str]
+    """User-friendly property value string."""
+    valuePreview: NotRequired[ObjectPreview]
+    """Nested value preview."""
+    subtype: NotRequired[Literal["array", "null", "node", "regexp", "date", "map", "set", "weakmap", "weakset", "iterator", "generator", "error", "proxy", "promise", "typedarray", "arraybuffer", "dataview", "webassemblymemory", "wasmvalue", "trustedtype"]]
+    """Object subtype hint. Specified for object type values only."""
+class EntryPreview(TypedDict, total=True):
+    value: ObjectPreview
+    """Preview of the value."""
+    key: NotRequired[ObjectPreview]
+    """Preview of the key. Specified for map-like collection entries."""
+class PropertyDescriptor(TypedDict, total=True):
+    """Object property descriptor."""
+    name: str
+    """Property name or symbol description."""
+    configurable: bool
+    """True if the type of this property descriptor may be changed and if the property may be deleted from the corresponding object."""
+    enumerable: bool
+    """True if this property shows up during enumeration of the properties on the corresponding object."""
+    value: NotRequired[RemoteObject]
+    """The value associated with the property."""
+    writable: NotRequired[bool]
+    """True if the value associated with the property may be changed (data descriptors only)."""
+    get: NotRequired[RemoteObject]
+    """A function which serves as a getter for the property, or undefined if there is no getter (accessor descriptors only)."""
+    set: NotRequired[RemoteObject]
+    """A function which serves as a setter for the property, or undefined if there is no setter (accessor descriptors only)."""
+    wasThrown: NotRequired[bool]
+    """True if the result was thrown during the evaluation."""
+    isOwn: NotRequired[bool]
+    """True if the property is owned for the object."""
+    symbol: NotRequired[RemoteObject]
+    """Property symbol object, if the property is of the symbol type."""
+class InternalPropertyDescriptor(TypedDict, total=True):
+    """Object internal property descriptor. This property isn't normally visible in JavaScript code."""
+    name: str
+    """Conventional property name."""
+    value: NotRequired[RemoteObject]
+    """The value associated with the property."""
+class PrivatePropertyDescriptor(TypedDict, total=True):
+    """Object private field descriptor."""
+    name: str
+    """Private property name."""
+    value: NotRequired[RemoteObject]
+    """The value associated with the private property."""
+    get: NotRequired[RemoteObject]
+    """A function which serves as a getter for the private property, or undefined if there is no getter (accessor descriptors only)."""
+    set: NotRequired[RemoteObject]
+    """A function which serves as a setter for the private property, or undefined if there is no setter (accessor descriptors only)."""
+class CallArgument(TypedDict, total=False):
+    """Represents function call argument. Either remote object id objectId, primitive value, unserializable primitive value or neither of (for undefined) them should be specified."""
+    value: NotRequired[Any]
+    """Primitive value or serializable javascript object."""
+    unserializableValue: NotRequired[UnserializableValue]
+    """Primitive value which can not be JSON-stringified."""
+    objectId: NotRequired[RemoteObjectId]
+    """Remote object handle."""
+ExecutionContextId = int
+"""Id of an execution context."""
+class ExecutionContextDescription(TypedDict, total=True):
+    """Description of an isolated world."""
+    id: ExecutionContextId
+    """Unique id of the execution context. It can be used to specify in which execution context script evaluation should be performed."""
+    origin: str
+    """Execution context origin."""
+    name: str
+    """Human readable name describing given context."""
+    uniqueId: str
+    """A system-unique execution context identifier. Unlike the id, this is unique across multiple processes, so can be reliably used to identify specific context while backend performs a cross-process navigation."""
+    auxData: NotRequired[Dict[str, Any]]
+    """Embedder-specific auxiliary data likely matching {isDefault: boolean, type: 'default'|'isolated'|'worker', frameId: string}"""
+class ExceptionDetails(TypedDict, total=True):
+    """Detailed information about exception (or error) that was thrown during script compilation or execution."""
+    exceptionId: int
+    """Exception id."""
+    text: str
+    """Exception text, which should be used together with exception object when available."""
+    lineNumber: int
+    """Line number of the exception location (0-based)."""
+    columnNumber: int
+    """Column number of the exception location (0-based)."""
+    scriptId: NotRequired[ScriptId]
+    """Script ID of the exception location."""
+    url: NotRequired[str]
+    """URL of the exception location, to be used when the script was not reported."""
+    stackTrace: NotRequired[StackTrace]
+    """JavaScript stack trace if available."""
+    exception: NotRequired[RemoteObject]
+    """Exception object if available."""
+    executionContextId: NotRequired[ExecutionContextId]
+    """Identifier of the context where exception happened."""
+    exceptionMetaData: NotRequired[Dict[str, Any]]
+    """Dictionary with entries of meta data that the client associated with this exception, such as information about associated network requests, etc."""
+Timestamp = float
+"""Number of milliseconds since epoch."""
+TimeDelta = float
+"""Number of milliseconds."""
+class CallFrame(TypedDict, total=True):
+    """Stack entry for runtime errors and assertions."""
+    functionName: str
+    """JavaScript function name."""
+    scriptId: ScriptId
+    """JavaScript script id."""
+    url: str
+    """JavaScript script name or url."""
+    lineNumber: int
+    """JavaScript script line number (0-based)."""
+    columnNumber: int
+    """JavaScript script column number (0-based)."""
+class StackTrace(TypedDict, total=True):
+    """Call frames for assertions or error messages."""
+    callFrames: List[CallFrame]
+    """JavaScript function name."""
+    description: NotRequired[str]
+    """String label of this stack trace. For async traces this may be a name of the function that initiated the async call."""
+    parent: NotRequired[StackTrace]
+    """Asynchronous JavaScript stack trace that preceded this stack, if available."""
+    parentId: NotRequired[StackTraceId]
+    """Asynchronous JavaScript stack trace that preceded this stack, if available."""
+UniqueDebuggerId = str
+"""Unique identifier of current debugger."""
+class StackTraceId(TypedDict, total=True):
+    """If debuggerId is set stack trace comes from another debugger and can be resolved there. This allows to track cross-debugger calls. See Runtime.StackTrace and Debugger.paused for usages."""
+    id: str
+    debuggerId: NotRequired[UniqueDebuggerId]

@@ -1,0 +1,71 @@
+"""CDP SystemInfo Types"""
+from __future__ import annotations
+from typing import TypedDict, NotRequired, Required, Literal, Any, Dict, Union, Optional, List, Set, Tuple
+
+class GPUDevice(TypedDict, total=True):
+    """Describes a single graphics processor (GPU)."""
+    vendorId: float
+    """PCI ID of the GPU vendor, if available; 0 otherwise."""
+    deviceId: float
+    """PCI ID of the GPU device, if available; 0 otherwise."""
+    vendorString: str
+    """String description of the GPU vendor, if the PCI ID is not available."""
+    deviceString: str
+    """String description of the GPU device, if the PCI ID is not available."""
+    driverVendor: str
+    """String description of the GPU driver vendor."""
+    driverVersion: str
+    """String description of the GPU driver version."""
+    subSysId: NotRequired[float]
+    """Sub sys ID of the GPU, only available on Windows."""
+    revision: NotRequired[float]
+    """Revision of the GPU, only available on Windows."""
+class Size(TypedDict, total=True):
+    """Describes the width and height dimensions of an entity."""
+    width: int
+    """Width in pixels."""
+    height: int
+    """Height in pixels."""
+class VideoDecodeAcceleratorCapability(TypedDict, total=True):
+    """Describes a supported video decoding profile with its associated minimum and maximum resolutions."""
+    profile: str
+    """Video codec profile that is supported, e.g. VP9 Profile 2."""
+    maxResolution: Size
+    """Maximum video dimensions in pixels supported for this |profile|."""
+    minResolution: Size
+    """Minimum video dimensions in pixels supported for this |profile|."""
+class VideoEncodeAcceleratorCapability(TypedDict, total=True):
+    """Describes a supported video encoding profile with its associated maximum resolution and maximum framerate."""
+    profile: str
+    """Video codec profile that is supported, e.g H264 Main."""
+    maxResolution: Size
+    """Maximum video dimensions in pixels supported for this |profile|."""
+    maxFramerateNumerator: int
+    """Maximum encoding framerate in frames per second supported for this |profile|, as fraction's numerator and denominator, e.g. 24/1 fps, 24000/1001 fps, etc."""
+    maxFramerateDenominator: int
+SubsamplingFormat = Literal['yuv420','yuv422','yuv444']
+"""YUV subsampling type of the pixels of a given image."""
+ImageType = Literal['jpeg','webp','unknown']
+"""Image format of a given image."""
+class GPUInfo(TypedDict, total=True):
+    """Provides information about the GPU(s) on the system."""
+    devices: List[GPUDevice]
+    """The graphics devices on the system. Element 0 is the primary GPU."""
+    driverBugWorkarounds: List[str]
+    """An optional array of GPU driver bug workarounds."""
+    videoDecoding: List[VideoDecodeAcceleratorCapability]
+    """Supported accelerated video decoding capabilities."""
+    videoEncoding: List[VideoEncodeAcceleratorCapability]
+    """Supported accelerated video encoding capabilities."""
+    auxAttributes: NotRequired[Dict[str, Any]]
+    """An optional dictionary of additional GPU related attributes."""
+    featureStatus: NotRequired[Dict[str, Any]]
+    """An optional dictionary of graphics features and their status."""
+class ProcessInfo(TypedDict, total=True):
+    """Represents process info."""
+    type: str
+    """Specifies process type."""
+    id: int
+    """Specifies process id."""
+    cpuTime: float
+    """Specifies cumulative CPU usage in seconds across all threads of the process since the process start."""
