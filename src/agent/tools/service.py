@@ -196,7 +196,7 @@ async def script_tool(script: str, session: Session = None):
     (function(){ try { /* code */ } catch(e) { return 'Error: '+e.message } })()
     Use only browser APIs (document, window, DOM). Keep return values small.
     Only for elements without an index label — use click_tool for indexed elements.'''
-    result = await session.execute_script(script, truncate=True)
+    result = await session.execute_script(script, truncate=True, repair=True)
     return f'Script result: {result}'
 
 

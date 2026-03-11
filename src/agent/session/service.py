@@ -420,9 +420,10 @@ class Session:
 
         return code
 
-    async def execute_script(self, script: str, truncate: bool = False) -> Any:
+    async def execute_script(self, script: str, truncate: bool = False, repair: bool = False) -> Any:
         sid = self._get_current_session_id()
-        script = self._repair_js(script)
+        if repair:
+            script = self._repair_js(script)
         try:
             result = await self.browser.send('Runtime.evaluate', {
                 'expression': script, 'returnByValue': True, 'awaitPromise': True,
