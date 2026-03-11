@@ -50,14 +50,7 @@ class BrowserConfig:
     def get_system_profile_dir(self) -> str | None:
         return _get_browser_user_data_dir(self.browser)
 
-SECURITY_ARGS = [
-    '--disable-web-security',
-    '--disable-site-isolation-trials',
-    '--disable-features=IsolateOrigins,site-per-process',
-]
-
 BROWSER_ARGS = [
-    '--disable-sandbox',
     '--enable-blink-features=IdleDetection',
     '--disable-blink-features=AutomationControlled',
     '--disable-infobars',

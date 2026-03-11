@@ -118,6 +118,12 @@ class Agent(BaseAgent):
 
         for step in range(self.state.max_steps):
             self.state.step = step
+
+            if self.session.crashed:
+                error = 'Browser crashed — all tabs are gone. Aborting.'
+                self.event.emit(AgentEvent(type=EventType.ERROR, data={'step': step, 'error': error}))
+                return AgentResult(is_done=False, error=error)
+
             state_msg = await self.context.state(
                 query=self.state.task,
                 step=step,

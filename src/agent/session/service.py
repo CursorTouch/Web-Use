@@ -62,6 +62,7 @@ class Session:
         self._current_target_id: str | None         = None
 
         self._browser_state: BrowserState = None
+        self.crashed: bool = False
 
         # Last known mouse position (for trajectory simulation)
         self._mouse_x: int = 0

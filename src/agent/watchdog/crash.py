@@ -39,3 +39,7 @@ class CrashWatchdog(BaseWatchdog):
                 self.session._current_target_id = (
                     next(iter(self.session._sessions), None)
                 )
+
+            # If no tabs remain, mark session as crashed so the agent can abort
+            if not self.session._sessions:
+                self.session.crashed = True

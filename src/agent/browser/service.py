@@ -1,4 +1,4 @@
-from src.agent.browser.config import BrowserConfig, BROWSER_ARGS, SECURITY_ARGS
+from src.agent.browser.config import BrowserConfig, BROWSER_ARGS
 from typing import Any, Optional, Callable
 from pathlib import Path
 from src.cdp import Client
@@ -45,6 +45,14 @@ class Browser:
         port = self.config.cdp_port
         for attempt in range(10):
             try:
+                # Verify we connected to the correct browser before accepting
+                if not await self._is_correct_browser(port):
+                    # Wrong browser still on port — kill and re-launch
+                    self._kill_on_port(port)
+                    await asyncio.sleep(1.0)
+                    self._process = self._launch_process()
+                    await self._wait_for_browser(port=port, timeout=15.0)
+                    continue
                 ws_url = await self._fetch_ws_url(f'http://localhost:{port}')
                 self._client = Client(ws_url)
                 await self._client.__aenter__()
@@ -215,7 +223,7 @@ class Browser:
             f'--remote-debugging-port={port}',
             f'--user-data-dir={user_data_dir}',
             f'--download-default-directory={self.config.downloads_dir}',
-        ] + BROWSER_ARGS + SECURITY_ARGS
+        ] + BROWSER_ARGS
 
         if self.config.headless:
             args.append('--headless=new')
