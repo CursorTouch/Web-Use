@@ -19,7 +19,7 @@ import asyncio
 if TYPE_CHECKING:
     from src.providers.base import BaseChatLLM
 
-DONE_TOOL_NAME = "Done Tool"
+DONE_TOOL_NAME = "done_tool"
 _NON_TOOL_PARAMS = {"thought"}
 
 
@@ -37,6 +37,7 @@ class Agent(BaseAgent):
         log_to_file: bool = False,
         log_to_console: bool = True,
         event_subscriber: Callable[[AgentEvent], None] | None = None,
+        sensitive_data: dict[str, str] = {},
     ) -> None:
         self.browser = Browser(config=config)
         self.session = Session(browser=self.browser)
@@ -51,6 +52,7 @@ class Agent(BaseAgent):
         self.instructions = instructions
         self.use_vision = use_vision
         self.llm = llm
+        self.sensitive_data = sensitive_data
         self._cached_system_message = None
 
         self.event = Event()
@@ -73,6 +75,40 @@ class Agent(BaseAgent):
     @property
     def tools(self):
         return self.registry.get_tools()
+
+    def _scrub_sensitive(self, text: str) -> str:
+        """Replace any real credential values in text with their placeholder names."""
+        for placeholder, real_value in self.sensitive_data.items():
+            if real_value and real_value in text:
+                text = text.replace(real_value, f'<{placeholder}>')
+        return text
+
+    def _scrub_messages(self):
+        """Scan all messages in state and redact any leaked credential values."""
+        if not self.sensitive_data:
+            return
+        for msg in self.state.messages:
+            if hasattr(msg, 'content') and isinstance(msg.content, str):
+                msg.content = self._scrub_sensitive(msg.content)
+
+    def _resolve_sensitive(self, tool_params: dict) -> dict:
+        """Replace placeholder keys with real credential values.
+
+        Any param whose string value exactly matches a key in sensitive_data is
+        substituted with the real value.  Keys ending with '_2fa_code' are treated
+        as TOTP secrets — a fresh code is generated at call time via pyotp.
+        """
+        if not self.sensitive_data:
+            return tool_params
+        import pyotp
+        resolved = {}
+        for k, v in tool_params.items():
+            if isinstance(v, str) and v in self.sensitive_data:
+                secret = self.sensitive_data[v]
+                resolved[k] = pyotp.TOTP(secret).now() if v.endswith('_2fa_code') else secret
+            else:
+                resolved[k] = v
+        return resolved
 
     async def aloop(self) -> AgentResult:
         self.state.messages.insert(0, self.system_message)
@@ -109,7 +145,7 @@ class Agent(BaseAgent):
                         case LLMEventType.TEXT:
                             ai_msg = AIMessage(content=llm_event.content)
                             human_msg = HumanMessage(
-                                content="Response rejected. Use the `Done Tool` to respond to the user."
+                                content="Response rejected. You must call a tool. Use `done_tool` to complete the task."
                             )
                             self.state.error_messages.extend([ai_msg, human_msg])
                             continue
@@ -145,10 +181,11 @@ class Agent(BaseAgent):
                     },
                 ))
 
-            # Act: execute tool
+            # Act: execute tool (resolve sensitive placeholders just before execution)
+            exec_params = self._resolve_sensitive(tool_params)
             tool_result_obj = await self.registry.aexecute(
                 tool_name=tool_name,
-                tool_params=tool_params,
+                tool_params=exec_params,
                 session=self.session,
             )
 
@@ -157,6 +194,7 @@ class Agent(BaseAgent):
                 tool_result = content
                 message.content = content
                 self.state.messages.append(message)
+                self._scrub_messages()
                 consecutive_failures = 0
             else:
                 content = tool_result_obj.error

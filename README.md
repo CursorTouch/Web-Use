@@ -1,6 +1,6 @@
 <div align="center">
 
-  <h1>🌐 Web-Navigator</h1>
+  <h1>🌐 Web-Use</h1>
 
   <a href="https://github.com/Jeomon/Web-Agent/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
@@ -20,7 +20,7 @@
 
 <br>
 
-**Web Navigator** is your intelligent browsing companion, built to seamlessly navigate websites, interact with dynamic content, perform smart searches, download files, and adapt to ever-changing pages — all with minimal effort from you. Powered by advanced LLMs and the robust Playwright framework, it transforms complex web tasks into streamlined, automated workflows that boost productivity and save time.
+**Web-Use** is an intelligent autonomous browsing agent, built to seamlessly navigate websites, interact with dynamic content, perform smart searches, download files, and adapt to ever-changing pages — all with minimal effort from you. Powered by advanced LLMs and the Chrome DevTools Protocol, it transforms complex web tasks into streamlined, automated workflows that boost productivity and save time.
 
 ## 🛠️Installation Guide
 

@@ -7,6 +7,8 @@ from typing import Any
 import asyncio
 import base64
 import json
+import random
+import os
 
 
 
@@ -59,6 +61,10 @@ class Session:
         self._current_target_id: str | None         = None
 
         self._browser_state: BrowserState = None
+
+        # Last known mouse position (for trajectory simulation)
+        self._mouse_x: int = 0
+        self._mouse_y: int = 0
 
         # Watchdogs (attached during init_session)
         from src.agent.watchdog import DialogWatchdog, CrashWatchdog, DownloadWatchdog
@@ -382,12 +388,37 @@ class Session:
     # Input
     # ------------------------------------------------------------------
 
+    async def _move_mouse(self, x: int, y: int):
+        """Simulate human-like mouse movement via a quadratic bezier curve."""
+        sid = self._get_current_session_id()
+        x0, y0 = self._mouse_x, self._mouse_y
+        steps = random.randint(8, 14)
+        # Random control point offset for natural arc
+        cx = (x0 + x) / 2 + random.randint(-80, 80)
+        cy = (y0 + y) / 2 + random.randint(-40, 40)
+        for i in range(1, steps + 1):
+            t  = i / steps
+            px = int((1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t ** 2 * x)
+            py = int((1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy + t ** 2 * y)
+            await self.browser.send('Input.dispatchMouseEvent', {
+                'type': 'mouseMoved', 'x': px, 'y': py,
+            }, session_id=sid)
+            await asyncio.sleep(random.uniform(0.005, 0.018))
+        self._mouse_x, self._mouse_y = x, y
+
     async def click_at(self, x: int, y: int):
         sid = self._get_current_session_id()
-        for event_type in ('mousePressed', 'mouseReleased'):
-            await self.browser.send('Input.dispatchMouseEvent', {
-                'type': event_type, 'x': x, 'y': y, 'button': 'left', 'clickCount': 1,
-            }, session_id=sid)
+        # Small random jitter so clicks never land on the exact pixel center
+        jx = x + random.randint(-3, 3)
+        jy = y + random.randint(-3, 3)
+        await self._move_mouse(jx, jy)
+        await self.browser.send('Input.dispatchMouseEvent', {
+            'type': 'mousePressed', 'x': jx, 'y': jy, 'button': 'left', 'clickCount': 1,
+        }, session_id=sid)
+        await asyncio.sleep(random.uniform(0.05, 0.15))  # realistic hold duration
+        await self.browser.send('Input.dispatchMouseEvent', {
+            'type': 'mouseReleased', 'x': jx, 'y': jy, 'button': 'left', 'clickCount': 1,
+        }, session_id=sid)
 
     async def scroll_into_view(self, xpath: str):
         escaped = xpath.replace('"', '\\"')
@@ -404,8 +435,17 @@ class Session:
             await self.browser.send('Input.dispatchKeyEvent', {
                 'type': 'char', 'text': char,
             }, session_id=sid)
-            if delay_ms:
-                await asyncio.sleep(delay_ms / 1000)
+            # Variable inter-keystroke delay to mimic human typing rhythm
+            if char == ' ':
+                delay = random.uniform(0.08, 0.18)
+            elif char in '.,!?;:\n':
+                delay = random.uniform(0.10, 0.25)
+            else:
+                delay = random.uniform(0.04, 0.13)
+            # 5% chance of a brief "thinking" pause between characters
+            if random.random() < 0.05:
+                delay += random.uniform(0.20, 0.45)
+            await asyncio.sleep(delay)
 
     async def key_press(self, keys: str):
         sid = self._get_current_session_id()
@@ -446,9 +486,15 @@ class Session:
         cx = viewport[0] // 2
         cy = viewport[1] // 2
         delta = -amount if direction == 'up' else amount
-        await self.browser.send('Input.dispatchMouseEvent', {
-            'type': 'mouseWheel', 'x': cx, 'y': cy, 'deltaX': 0, 'deltaY': delta,
-        }, session_id=sid)
+        # Break scroll into several steps with slight variation — feels human
+        steps = random.randint(3, 6)
+        step_delta = delta / steps
+        for _ in range(steps):
+            await self.browser.send('Input.dispatchMouseEvent', {
+                'type': 'mouseWheel', 'x': cx, 'y': cy, 'deltaX': 0,
+                'deltaY': step_delta + random.uniform(-10, 10),
+            }, session_id=sid)
+            await asyncio.sleep(random.uniform(0.04, 0.10))
 
     async def scroll_element(self, xpath: str, direction: str, amount: int = 500):
         escaped = xpath.replace('"', '\\"')
@@ -553,6 +599,59 @@ class Session:
             dom_state=dom_state,
         )
         return self._browser_state
+
+    # ------------------------------------------------------------------
+    # Storage state (cookies as portable JSON)
+    # ------------------------------------------------------------------
+
+    async def export_storage_state(self, output_path: str | Path | None = None) -> dict:
+        """Export all browser cookies as a plain JSON dict via CDP.
+
+        Uses Storage.getCookies which returns decrypted cookie values directly,
+        avoiding OS keychain / DPAPI issues.  The result can be passed back via
+        import_storage_state() in a future session.
+        """
+        result = await self.browser.send('Storage.getCookies', {})
+        raw_cookies = result.get('cookies', [])
+        cookies = [
+            {
+                'name':     c['name'],
+                'value':    c['value'],
+                'domain':   c['domain'],
+                'path':     c.get('path', '/'),
+                'expires':  c.get('expires', -1),
+                'httpOnly': c.get('httpOnly', False),
+                'secure':   c.get('secure', False),
+                'sameSite': c.get('sameSite', 'Lax'),
+            }
+            for c in raw_cookies
+        ]
+        state = {'cookies': cookies}
+        if output_path:
+            out = Path(output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+        return state
+
+    async def import_storage_state(self, state: dict | str | Path):
+        """Inject cookies from a previously exported storage state.
+
+        Accepts either a dict (from export_storage_state) or a path to a JSON file.
+        Session cookies (expires <= 0) have their expiry stripped so Chrome
+        does not immediately discard them.
+        """
+        if isinstance(state, (str, Path)):
+            state = json.loads(Path(state).read_text())
+
+        cookies = []
+        for c in state.get('cookies', []):
+            cookie = dict(c)
+            if cookie.get('expires', -1) in (0, 0.0, -1, -1.0):
+                cookie.pop('expires', None)
+            cookies.append(cookie)
+
+        if cookies:
+            await self.browser.send('Network.setCookies', {'cookies': cookies})
 
     async def get_element_by_index(self, index: int) -> DOMElementNode:
         selector_map = self._browser_state.dom_state.selector_map

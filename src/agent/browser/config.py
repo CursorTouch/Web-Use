@@ -40,12 +40,15 @@ class BrowserConfig:
     downloads_dir: str = platformdirs.user_downloads_dir()
     browser: Literal['chrome', 'edge'] = 'edge'
     user_data_dir: str = None
+    # use_system_profile=True: copy real Chrome profile to temp on every launch (safe when Chrome is open)
+    # user_data_dir set to a custom path: seeds from real Chrome profile on first run, then persists
+    # user_data_dir=None: fresh temporary profile with no auth
+    use_system_profile: bool = False
     timeout: int = 60 * 1000
     slow_mo: int = 300
 
-    def __post_init__(self):
-        if self.user_data_dir is None:
-            self.user_data_dir = _get_browser_user_data_dir(self.browser)
+    def get_system_profile_dir(self) -> str | None:
+        return _get_browser_user_data_dir(self.browser)
 
 SECURITY_ARGS = [
     '--disable-web-security',
