@@ -1,5 +1,7 @@
 from src.agent.tools.views import Click, Type, Wait, Scroll, GoTo, Back, Key, Download, Scrape, Tab, Upload, Menu, Done, Forward, HumanInput, Script
 from src.agent.session import Session
+from src.providers.events import LLMEventType
+from src.messages import HumanMessage, SystemMessage
 from markdownify import markdownify
 from typing import Literal, Optional
 from termcolor import colored
@@ -11,13 +13,13 @@ import httpx
 
 
 @Tool('done_tool', model=Done)
-async def done(content: str, session: Session = None):
+async def done_tool(content: str, session: Session = None):
     '''Indicates that the current task has been completed successfully. Use this to signal completion and provide a summary of what was accomplished.'''
     return content
 
 
 @Tool('click_tool', model=Click)
-async def click(index: int, session: Session = None):
+async def click_tool(index: int, session: Session = None):
     '''Clicks on interactive elements like buttons, links, checkboxes, radio buttons, tabs, or any clickable UI component. Automatically scrolls the element into view if needed.'''
     element = await session.get_element_by_index(index=index)
     xpath   = element.xpath.get('element', '')
@@ -29,7 +31,7 @@ async def click(index: int, session: Session = None):
 
 
 @Tool('type_tool', model=Type)
-async def type(index: int, text: str, clear: Literal['True', 'False'] = 'False', press_enter: Literal['True', 'False'] = 'False', session: Session = None):
+async def type_tool(index: int, text: str, clear: Literal['True', 'False'] = 'False', press_enter: Literal['True', 'False'] = 'False', session: Session = None):
     '''Types text into input fields, text areas, search boxes, or any editable element. Can optionally clear existing content before typing.'''
     element = await session.get_element_by_index(index=index)
     xpath   = element.xpath.get('element', '')
@@ -47,14 +49,14 @@ async def type(index: int, text: str, clear: Literal['True', 'False'] = 'False',
 
 
 @Tool('wait_tool', model=Wait)
-async def wait(time: int, session: Session = None):
+async def wait_tool(time: int, session: Session = None):
     '''Pauses execution for a specified number of seconds. Use this to wait for page loading, animations to complete, or content to appear after an action.'''
     await sleep(time)
     return f'Waited for {time}s'
 
 
 @Tool('scroll_tool', model=Scroll)
-async def scroll(direction: Literal['up', 'down'] = 'down', index: int = None,amount: int = 500, session: Session = None):
+async def scroll_tool(direction: Literal['up', 'down'] = 'down', index: int = None,amount: int = 500, session: Session = None):
     '''Scrolls either the webpage or a specific scrollable container. If index is provided, scrolls that element; otherwise scrolls the page.'''
     if index is not None:
         element = await session.get_element_by_index(index=index)
@@ -76,28 +78,28 @@ async def scroll(direction: Literal['up', 'down'] = 'down', index: int = None,am
 
 
 @Tool('goto_tool', model=GoTo)
-async def goto(url: str, session: Session = None):
+async def goto_tool(url: str, session: Session = None):
     '''Navigates directly to a specified URL in the current tab. Waits for the page to load before proceeding.'''
     await session.navigate(url)
     return f'Navigated to {url}'
 
 
 @Tool('back_tool', model=Back)
-async def back(session: Session = None):
+async def back_tool(session: Session = None):
     '''Navigates to the previous page in browser history, equivalent to clicking the browser Back button.'''
     await session.go_back()
     return 'Navigated to previous page'
 
 
 @Tool('forward_tool', model=Forward)
-async def forward(session: Session = None):
+async def forward_tool(session: Session = None):
     '''Navigates to the next page in browser history, equivalent to clicking the browser Forward button.'''
     await session.go_forward()
     return 'Navigated to next page'
 
 
 @Tool('key_tool', model=Key)
-async def key(keys: str, times: int = 1, session: Session = None):
+async def key_tool(keys: str, times: int = 1, session: Session = None):
     '''Performs keyboard shortcuts and key combinations (e.g. "Control+C", "Enter", "Escape", "PageDown"). Can repeat the key press multiple times.'''
     for _ in range(times):
         await session.key_press(keys)
@@ -105,7 +107,7 @@ async def key(keys: str, times: int = 1, session: Session = None):
 
 
 @Tool('download_tool', model=Download)
-async def download(url: str = None, filename: str = None, session: Session = None):
+async def download_tool(url: str = None, filename: str = None, session: Session = None):
     '''Downloads a file from a URL and saves it to the downloads directory.'''
     folder_path = Path(session.browser.config.downloads_dir)
     async with httpx.AsyncClient() as client:
@@ -118,15 +120,34 @@ async def download(url: str = None, filename: str = None, session: Session = Non
 
 
 @Tool('scrape_tool', model=Scrape)
-async def scrape(session: Session = None):
-    '''Extracts and returns the main content from the current webpage in markdown format.'''
+async def scrape_tool(prompt: str = None, session: Session = None, llm=None):
+    '''Extracts content from the current webpage.
+    If prompt is given, uses the LLM to extract only the requested information from the page.
+    If prompt is omitted, returns the full page content as markdown.'''
     html    = await session.get_page_content()
     content = markdownify(html)
+
+    if prompt and llm:
+        system = SystemMessage(content=(
+            'You are a precise information extractor. '
+            'The user will give you a webpage content and a specific extraction request. '
+            'Extract only the requested information — nothing more. '
+            'Be concise and structured. Use markdown lists or tables where appropriate. '
+            'If the requested information is not present on the page, say so clearly.'
+        ))
+        human = HumanMessage(content=(
+            f'Extraction request: {prompt}\n\n'
+            f'Webpage content:\n{content}'
+        ))
+        event = await llm.ainvoke(messages=[system, human])
+        if event.type == LLMEventType.TEXT:
+            return f'Extracted information:\n{event.content}'
+
     return f'Scraped the contents of the webpage:\n{content}'
 
 
 @Tool('tab_tool', model=Tab)
-async def tab(mode: Literal['open', 'close', 'switch'], tab_index: Optional[int] = None, session: Session = None):
+async def tab_tool(mode: Literal['open', 'close', 'switch'], tab_index: Optional[int] = None, session: Session = None):
     '''Manages browser tabs: opens new blank tabs, closes the current tab, or switches between existing tabs by index.'''
     match mode:
         case 'open':
@@ -150,7 +171,7 @@ async def tab(mode: Literal['open', 'close', 'switch'], tab_index: Optional[int]
 
 
 @Tool('upload_tool', model=Upload)
-async def upload(index: int, filenames: list[str], session: Session = None):
+async def upload_tool(index: int, filenames: list[str], session: Session = None):
     '''Uploads one or more files to a file input element. Files must be present in the ./uploads directory.'''
     element = await session.get_element_by_index(index=index)
     xpath   = element.xpath.get('element', '')
@@ -160,7 +181,7 @@ async def upload(index: int, filenames: list[str], session: Session = None):
 
 
 @Tool('menu_tool', model=Menu)
-async def menu(index: int, labels: list[str], session: Session = None):
+async def menu_tool(index: int, labels: list[str], session: Session = None):
     '''Selects one or more options in a <select> dropdown by their visible label text.'''
     element = await session.get_element_by_index(index=index)
     xpath   = element.xpath.get('element', '')
@@ -169,14 +190,18 @@ async def menu(index: int, labels: list[str], session: Session = None):
 
 
 @Tool('script_tool', model=Script)
-async def script(script: str, session: Session = None):
-    '''Executes arbitrary JavaScript on the current page and returns the result.'''
-    result = await session.execute_script(script)
+async def script_tool(script: str, session: Session = None):
+    '''Executes JavaScript on the current page and returns the result.
+    Always wrap in an IIFE with try-catch:
+    (function(){ try { /* code */ } catch(e) { return 'Error: '+e.message } })()
+    Use only browser APIs (document, window, DOM). Keep return values small.
+    Only for elements without an index label — use click_tool for indexed elements.'''
+    result = await session.execute_script(script, truncate=True)
     return f'Script result: {result}'
 
 
 @Tool('human_tool', model=HumanInput)
-async def human(prompt: str, session: Session = None):
+async def human_tool(prompt: str, session: Session = None):
     '''Requests human assistance when encountering CAPTCHAs, OTP codes, or other challenges that require a human.'''
     print(colored(f'Agent: {prompt}', color='cyan', attrs=['bold']))
     human_response = input('User: ')

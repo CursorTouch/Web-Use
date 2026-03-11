@@ -39,10 +39,28 @@ EXCLUDED_TAGS = frozenset({
 })
 
 SAFE_ATTRIBUTES = frozenset({
-    'name', 'type', 'value', 'placeholder', 'label', 'aria-label',
-    'aria-labelledby', 'aria-describedby', 'role', 'for', 'autocomplete',
-    'required', 'readonly', 'alt', 'title', 'data-testid', 'href',
-    'target', 'tabindex', 'class', 'data-tooltip',
+    # Identity
+    'id', 'name', 'role', 'type',
+    # Content / labels
+    'value', 'placeholder', 'alt', 'title',
+    'aria-label', 'aria-placeholder', 'aria-autocomplete',
+    # State (is it checked? expanded? disabled?)
+    'checked', 'selected', 'expanded', 'pressed',
+    'disabled', 'required', 'invalid',
+    'aria-checked', 'aria-selected', 'aria-expanded',
+    'aria-pressed', 'aria-disabled', 'aria-hidden',
+    'data-state',
+    # Input constraints (help agent avoid wrong formats)
+    'pattern', 'min', 'max', 'minlength', 'maxlength',
+    'step', 'accept', 'multiple', 'inputmode', 'autocomplete',
+    # Range / slider values
+    'aria-valuemin', 'aria-valuemax', 'aria-valuenow',
+    # Date / time format hints
+    'data-date-format', 'data-datepicker',
+    # Rich text / popup hints
+    'contenteditable', 'haspopup', 'multiselectable',
+    # Test / automation hooks
+    'data-testid',
 })
 
 _MARK_PAGE_JS = """(function(boxes){

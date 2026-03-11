@@ -9,6 +9,7 @@ import base64
 import json
 import random
 import os
+import re
 
 
 
@@ -372,14 +373,65 @@ class Session:
     # Script execution
     # ------------------------------------------------------------------
 
-    async def execute_script(self, script: str) -> Any:
+    @staticmethod
+    def _repair_js(code: str) -> str:
+        """Fix common escaping mistakes in LLM-generated JavaScript.
+
+        Covers the patterns most frequently broken when Python serialises
+        JS strings into JSON tool-call arguments:
+        1. Double-escaped quotes  (\\" → ")
+        2. Over-escaped regex sequences  (\\\\d → \\d, \\\\. → \\.)
+        3. querySelector / querySelectorAll with mixed outer/inner quotes
+           → rewritten to use backtick template literals
+        4. document.evaluate XPath with mixed quotes → backtick template literals
+        """
+        # 1. Double-escaped quotes produced by JSON round-trip
+        code = re.sub(r'\\"', '"', code)
+
+        # 2. Over-escaped regex escape sequences (\\\\X → \\X)
+        code = re.sub(r'\\\\([dDsSwWbBnrtfv])', r'\\\1', code)
+        code = re.sub(r'\\\\([.*+?^${}()|[\]\\])', r'\\\1', code)
+
+        # 3. querySelector[All]("selector with 'single' quotes") → backtick form
+        def _fix_selector(m: re.Match) -> str:
+            fn, sel = m.group(1), m.group(2)
+            if "'" in sel:
+                return f'{fn}(`{sel}`)'
+            return m.group(0)
+
+        code = re.sub(
+            r'(querySelector(?:All)?)\s*\(\s*"([^"]*)"\s*\)',
+            _fix_selector,
+            code,
+        )
+
+        # 4. document.evaluate("xpath with 'quotes'", ...) → backtick form
+        def _fix_xpath(m: re.Match) -> str:
+            xpath = m.group(1)
+            if "'" in xpath:
+                return f'document.evaluate(`{xpath}`,'
+            return m.group(0)
+
+        code = re.sub(
+            r'document\.evaluate\s*\(\s*"([^"]*)"\s*,',
+            _fix_xpath,
+            code,
+        )
+
+        return code
+
+    async def execute_script(self, script: str, truncate: bool = False) -> Any:
         sid = self._get_current_session_id()
+        script = self._repair_js(script)
         try:
             result = await self.browser.send('Runtime.evaluate', {
                 'expression': script, 'returnByValue': True, 'awaitPromise': True,
             }, session_id=sid)
             if result and 'result' in result:
-                return result['result'].get('value')
+                value = result['result'].get('value')
+                if truncate and isinstance(value, str) and len(value) > 20_000:
+                    value = value[:20_000] + f'\n... [truncated, total length: {len(value)}]'
+                return value
         except Exception as e:
             print(f'execute_script error: {e}')
         return None

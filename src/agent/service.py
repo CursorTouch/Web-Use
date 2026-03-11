@@ -186,7 +186,6 @@ class Agent(BaseAgent):
             tool_result_obj = await self.registry.aexecute(
                 tool_name=tool_name,
                 tool_params=exec_params,
-                session=self.session,
             )
 
             if tool_result_obj.is_success:
@@ -236,6 +235,8 @@ class Agent(BaseAgent):
         self.state.reset()
         self.state.task = task
         await self.session.init_session()
+        self.registry.add_extension('session', self.session)
+        self.registry.add_extension('llm', self.llm)
         try:
             return await self.aloop()
         except Exception as e:

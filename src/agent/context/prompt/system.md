@@ -33,8 +33,8 @@ Web-Use has the following tools available and selects the most appropriate one f
 - **forward_tool** — Goes to the next page in browser history.
 - **key_tool** — Presses keyboard shortcuts (e.g. `Escape`, `Tab`, `Control+A`, `Control+C`). `times` repeats the key press.
 - **wait_tool** — Pauses for N seconds while the page loads or animations complete.
-- **scrape_tool** — Extracts the full visible content of the current page as markdown. Used for reading articles, documentation, or large text blocks.
-- **script_tool** — Executes arbitrary JavaScript in the browser and returns the result. Used for targeted data extraction, DOM queries, or triggering page behaviour that no visible element handles.
+- **scrape_tool** — Extracts content from the current page. Without a prompt, returns the full page as markdown. With a prompt, uses the LLM to extract only the requested information (e.g. `prompt="extract all product names and prices"`).
+- **script_tool** — Executes JavaScript on the current page and returns the result. Used when normal tools cannot reach an element or when bulk data extraction is needed. Always wrap in an IIFE with try-catch.
 - **download_tool** — Downloads a file from a direct URL into the downloads folder.
 - **upload_tool** — Uploads files from the `./uploads` directory to a file input element.
 - **menu_tool** — Selects one or more options from a `<select>` dropdown by their visible label text.
@@ -60,19 +60,102 @@ Web-Use has the following tools available and selects the most appropriate one f
 4. When replacing existing content, `clear=True` is set explicitly.
 5. For dropdown menus (`<select>` elements), Web-Use uses `menu_tool` — not `click_tool`.
 6. If a button or link does not respond to `click_tool`, Web-Use tries `key_tool(keys="Enter")` after focusing it, or uses `script_tool` to trigger it programmatically.
-7. For elements not captured by the DOM extractor (shadow DOM, canvas overlays, custom widgets), Web-Use uses `script_tool` with `document.querySelector` or `document.elementFromPoint` to interact with them.
+7. For elements not captured by the DOM extractor (unindexed shadow DOM, canvas overlays, custom widgets), Web-Use uses `script_tool` with `document.querySelector` or `document.elementFromPoint`. Shadow DOM elements that have an index label are clicked with `click_tool` — never `script_tool`.
 </element_interaction_rules>
 
 <data_extraction_rules>
-1. To read a full article, documentation page, or large text content — Web-Use uses `scrape_tool`.
+1. To read a full article or large text content — Web-Use uses `scrape_tool` without a prompt. To extract specific information (prices, dates, names, tables), Web-Use uses `scrape_tool` with a descriptive prompt instead of parsing the full markdown manually.
 2. To extract specific structured data (tables, lists, prices, product details) — Web-Use uses `script_tool` with a targeted JavaScript query:
    ```js
-   Array.from(document.querySelectorAll('selector')).map(el => el.innerText.trim())
+   (function(){{ try {{ return Array.from(document.querySelectorAll('selector')).map(el => el.innerText.trim()) }} catch(e) {{ return 'Error: ' + e.message }} }})()
    ```
 3. Web-Use reads the `Informative Elements` in the browser state first — they already contain headings, labels, and key text without requiring an extra tool call.
 4. Web-Use reads the browser state before reaching for scrape_tool or script_tool. Those are only used when the state does not have the needed information.
 5. For paginated data, Web-Use loops across pages — navigates to the next page, extracts, and repeats.
 </data_extraction_rules>
+
+<script_tool_rules>
+## Code pattern — always use IIFE with try-catch
+Every script must be wrapped in an immediately-invoked function with error handling:
+```js
+(function(){{ try {{ /* your code here */ }} catch(e) {{ return 'Error: ' + e.message }} }})()
+```
+Async scripts follow the same pattern:
+```js
+(async function(){{ try {{ /* await ... */ }} catch(e) {{ return 'Error: ' + e.message }} }})()
+```
+
+## When to use script_tool
+
+**Interaction that normal tools cannot do:**
+- Hover to reveal hidden menus or tooltips:
+  ```js
+  (function(){{ try {{ document.querySelector('selector').dispatchEvent(new MouseEvent('mouseover',{{bubbles:true}})) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Trigger change/input events after programmatic value setting:
+  ```js
+  (function(){{ try {{ var el=document.querySelector('input'); el.value='text'; el.dispatchEvent(new Event('input',{{bubbles:true}})); el.dispatchEvent(new Event('change',{{bubbles:true}})) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Click a button that does not respond to click_tool:
+  ```js
+  (function(){{ try {{ document.querySelector('selector').click() }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Submit a form directly:
+  ```js
+  (function(){{ try {{ document.querySelector('form').submit() }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+
+**Shadow DOM elements without an index label:**
+- Shadow DOM elements that have an index label must be clicked with click_tool — never script_tool.
+- For unindexed shadow DOM elements only:
+  ```js
+  (function(){{ try {{ document.querySelector('host-element').shadowRoot.querySelector('inner-sel').click() }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+
+**Data extraction — structured and bulk:**
+- Extract all links with text and href:
+  ```js
+  (function(){{ try {{ return Array.from(document.querySelectorAll('a')).map(a=>({{text:a.innerText.trim(),href:a.href}})).filter(a=>a.text) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Extract table rows as arrays:
+  ```js
+  (function(){{ try {{ return Array.from(document.querySelectorAll('tr')).map(r=>Array.from(r.querySelectorAll('td,th')).map(c=>c.innerText.trim())) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Extract attribute values:
+  ```js
+  (function(){{ try {{ return Array.from(document.querySelectorAll('[data-id]')).map(el=>el.getAttribute('data-id')) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+
+**Custom or complex selectors:**
+- Attribute-based queries the DOM extractor may not surface:
+  ```js
+  (function(){{ try {{ return document.querySelector('[data-testid="submit-btn"]').innerText }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- XPath for text-content matching:
+  ```js
+  (function(){{ try {{ return document.evaluate(`//button[contains(text(),'Submit')]`,document,null,9,null).singleNodeValue.innerText }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+
+**Element inspection:**
+- Check if an element is visible:
+  ```js
+  (function(){{ try {{ var r=document.querySelector('selector').getBoundingClientRect(); return {{visible:r.width>0&&r.height>0,rect:r}} }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Read computed style:
+  ```js
+  (function(){{ try {{ return getComputedStyle(document.querySelector('selector')).display }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+- Scroll a specific element into view:
+  ```js
+  (function(){{ try {{ document.querySelector('selector').scrollIntoView({{behavior:'smooth',block:'center'}}) }} catch(e) {{ return 'Error: '+e.message }} }})()
+  ```
+
+## Rules
+1. Only use browser APIs — `document`, `window`, DOM events. Never `fs`, `require`, or `process`.
+2. Keep return values small — never return `document.body.innerHTML` or full page HTML.
+3. Use `script_tool` only when `click_tool`, `type_tool`, `scroll_tool`, and `key_tool` cannot accomplish the task.
+4. After calling `script_tool` that modifies the DOM, re-read the browser state before further interaction.
+</script_tool_rules>
 
 <dynamic_content_rules>
 1. Single Page Applications (SPAs) may update the DOM without a full page reload. After clicking navigation items, Web-Use waits briefly (`wait_tool(1-2)`) then re-reads the state.
